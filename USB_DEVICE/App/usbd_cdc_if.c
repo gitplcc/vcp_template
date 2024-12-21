@@ -109,6 +109,9 @@ uint8_t UserTxBufferFS[APP_TX_DATA_SIZE];
 extern USBD_HandleTypeDef hUsbDeviceFS;
 
 /* USER CODE BEGIN EXPORTED_VARIABLES */
+volatile uint8_t *USBD_CDC_IF_rx_ptr;
+volatile uint32_t USBD_CDC_IF_rcvd_len;
+volatile bool USBD_CDC_IF_overrun;
 
 /* USER CODE END EXPORTED_VARIABLES */
 
@@ -155,6 +158,8 @@ static int8_t CDC_Init_FS(void)
   /* Set Application Buffers */
   USBD_CDC_SetTxBuffer(&hUsbDeviceFS, UserTxBufferFS, 0);
   USBD_CDC_SetRxBuffer(&hUsbDeviceFS, UserRxBufferFS);
+  USBD_CDC_IF_overrun = false;
+  USBD_CDC_IF_rcvd_len = 0;
   return (USBD_OK);
   /* USER CODE END 3 */
 }
@@ -263,6 +268,9 @@ static int8_t CDC_Receive_FS(uint8_t* Buf, uint32_t *Len)
   /* USER CODE BEGIN 6 */
   USBD_CDC_SetRxBuffer(&hUsbDeviceFS, &Buf[0]);
   USBD_CDC_ReceivePacket(&hUsbDeviceFS);
+  USBD_CDC_IF_overrun = (0 != USBD_CDC_IF_rcvd_len);
+  USBD_CDC_IF_rx_ptr = Buf;
+  USBD_CDC_IF_rcvd_len = *Len;
   return (USBD_OK);
   /* USER CODE END 6 */
 }
@@ -283,7 +291,8 @@ uint8_t CDC_Transmit_FS(uint8_t* Buf, uint16_t Len)
   uint8_t result = USBD_OK;
   /* USER CODE BEGIN 7 */
   USBD_CDC_HandleTypeDef *hcdc = (USBD_CDC_HandleTypeDef*)hUsbDeviceFS.pClassData;
-  if (hcdc->TxState != 0){
+  if (0 != hcdc->TxState)
+  {
     return USBD_BUSY;
   }
   USBD_CDC_SetTxBuffer(&hUsbDeviceFS, Buf, Len);

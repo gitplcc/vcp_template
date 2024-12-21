@@ -22,7 +22,10 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include <stdio.h>
+#include <stdbool.h>
+#include <string.h>
+#include "usbd_cdc_if.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -37,7 +40,12 @@
 
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
-
+#define min(a,b)             \
+({                           \
+    __typeof__ (a) _a = (a); \
+    __typeof__ (b) _b = (b); \
+    _a < _b ? _a : _b;       \
+})
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
@@ -107,15 +115,17 @@ int main(void)
   MX_SPI1_Init();
   MX_USB_DEVICE_Init();
   /* USER CODE BEGIN 2 */
-
+  HAL_GPIO_WritePin(LD5_GPIO_Port, LD5_Pin, GPIO_PIN_RESET);
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
+  int count = 1;
   while (1)
   {
     /* USER CODE END WHILE */
-
+    printf("Hola Mundo %d\r\n", count++);
+    HAL_Delay(1000);
     /* USER CODE BEGIN 3 */
   }
   /* USER CODE END 3 */
@@ -407,6 +417,38 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+int _write(int file, char *ptr, int len)
+{
+  (void)file;
+  uint8_t rslt;
+
+  do
+  {
+    rslt = CDC_Transmit_FS((uint8_t *)ptr, len);
+  }
+  while(rslt == USBD_BUSY);
+
+  return rslt == USBD_OK ? len : -1;
+}
+
+int _read(int file, char *ptr, int len)
+{
+  (void)file;
+
+  HAL_NVIC_DisableIRQ(OTG_FS_IRQn);
+
+  int xfer_len = min(len, USBD_CDC_IF_rcvd_len);
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdiscarded-qualifiers"
+  memcpy(ptr, USBD_CDC_IF_rx_ptr, xfer_len);
+#pragma GCC diagnostic pop
+  USBD_CDC_IF_rx_ptr += xfer_len;
+  USBD_CDC_IF_rcvd_len -= xfer_len;
+
+  HAL_NVIC_EnableIRQ(OTG_FS_IRQn);
+
+  return xfer_len;
+}
 
 /* USER CODE END 4 */
 
@@ -419,6 +461,7 @@ void Error_Handler(void)
   /* USER CODE BEGIN Error_Handler_Debug */
   /* User can add his own implementation to report the HAL error return state */
   __disable_irq();
+  HAL_GPIO_WritePin(LD5_GPIO_Port, LD5_Pin, GPIO_PIN_SET);
   while (1)
   {
   }
